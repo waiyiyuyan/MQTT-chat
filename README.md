@@ -1,5 +1,3 @@
-# MQTT-chat
-
 # 💬 MQTT Web ChatRoom (网页实时聊天室)
 
 [![MQTT](https://img.shields.io/badge/MQTT-5.0%20%2F%203.1.1-blue.svg)](https://mqtt.org/)
