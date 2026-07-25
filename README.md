@@ -35,7 +35,7 @@
 
 2. **上线保持（Retain）**：上线时向个人 Topic 发布带 `retain: true` 的 JSON 数据，Broker 会为后来者保留当前最新的上线状态。
 3. **掉线清除（Last Will）**：建立连接时预设遗嘱为`空 Payload`（MQTT 规范中，空 Payload 的 Retain 消息等于删除该保留记录）。一旦设备离线，Broker 自动广播空消息，各客户端收到后将该用户从本地列表移除。
-
+```
 ---
 
 ## 🚀 快速开始
