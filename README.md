@@ -1,6 +1,5 @@
 # MQTT-chat
 
-```markdown
 # 💬 MQTT Web ChatRoom (网页实时聊天室)
 
 [![MQTT](https://img.shields.io/badge/MQTT-5.0%20%2F%203.1.1-blue.svg)](https://mqtt.org/)
@@ -31,8 +30,6 @@
 [ 客户端 A ] --( 1. 发布上线消息 + Retain )--> [ MQTT Broker ] <--( 2. 订阅通配符 Topic )-- [ 客户端 B ]
 [ 客户端 A ] --( 3. 异常断线/关闭页面 )---------> [ MQTT Broker ] --( 4. 触发遗嘱(Will)消息 )-> [ 客户端 B ]
 
-```
-
 1. **消息隔离**：
 * 聊天消息：`chat/{ROOM_ID}/messages`
 * 用户状态：`chat/{ROOM_ID}/users/{clientId}`（借助通配符 `chat/{ROOM_ID}/users/+` 进行监听）
@@ -49,7 +46,7 @@
 
 1. 克隆本项目或下载源码：
 ```bash
-github clone https://github.com/waiyiyuyan/MQTT-chat.git
+git clone https://github.com/waiyiyuyan/MQTT-chat.git
 ```
 
 
