@@ -49,8 +49,7 @@
 
 1. 克隆本项目或下载源码：
 ```bash
-git clone [https://github.com/你的用户名/你的仓库名.git](https://github.com/你的用户名/你的仓库名.git)
-
+github clone https://github.com/waiyiyuyan/MQTT-chat.git
 ```
 
 
