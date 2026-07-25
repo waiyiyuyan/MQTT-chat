@@ -84,7 +84,3 @@ const ROOM_ID = 'my_web_chat_room_2026';
 ## 📄 开源协议
 
 本项目采用 [MIT License](https://www.google.com/search?q=LICENSE) 协议开源，欢迎自由 fork 和二次修改。
-
-```
-
-```
