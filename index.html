@@ -94,7 +94,6 @@
       padding: 8px 12px; 
       border-radius: 14px; 
       font-size: 13px; 
-      line-height: 1.45; 
       word-break: break-all; 
       white-space: pre-wrap; 
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -110,6 +109,46 @@
       color: #ffffff; 
       border-top-right-radius: 4px; 
     }
+
+    /* 链接样式 */
+    .msg-bubble a {
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .msg-item.other .msg-bubble a { color: #007aff; }
+    .msg-item.me .msg-bubble a { color: #ffffff; }
+
+    /* 文件消息：气泡内的文件内容 */
+    .file-content {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none !important;
+      cursor: pointer;
+    }
+    .file-content:hover { opacity: 0.85; }
+
+    .file-icon {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .file-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .file-name { 
+      font-weight: 600; 
+      font-size: 12.5px; 
+      white-space: nowrap; 
+      overflow: hidden; 
+      text-overflow: ellipsis; 
+      max-width: 180px; 
+    }
+    .file-size-text { font-size: 11px; opacity: 0.65; }
 
     .user-sidebar {
       width: 200px;
@@ -156,20 +195,20 @@
       padding: 14px 18px; 
       border-top: 1px solid rgba(0, 0, 0, 0.06); 
       display: flex; 
-      gap: 14px; /* 稍微拉开一点输入框与按钮的间距，更舒展 */
+      gap: 10px;
       background: rgba(255, 255, 255, 0.5); 
       backdrop-filter: blur(15px);
-      align-items: flex-end; /* 底部对齐 */
+      align-items: flex-end;
     }
     
     textarea {
       flex: 1;
       height: 36px;
       max-height: 120px;
-      padding: 6px 4px 4px 4px; /* 调整内边距：底部留 4px，让文字与下划线保持舒适距离 */
-      margin-bottom: 2px; /* 微调 2px，确保下划线与右侧按钮底部完美平齐 */
+      padding: 6px 4px 4px 4px;
+      margin-bottom: 2px;
       border: none;
-      border-bottom: 1.5px solid rgba(0, 0, 0, 0.18); /* 默认下划线 */
+      border-bottom: 1.5px solid rgba(0, 0, 0, 0.18);
       border-radius: 0;
       outline: none;
       resize: none;
@@ -181,7 +220,6 @@
       transition: border-color 0.25s ease, box-shadow 0.25s ease;
     }
 
-    /* 优化 Placeholder 提示文字颜色 */
     textarea::placeholder {
       color: #a1a1a6;
       font-size: 13px;
@@ -189,13 +227,13 @@
 
     textarea:focus { 
       background: transparent; 
-      border-bottom-color: #007aff; /* 聚焦高亮蓝 */
+      border-bottom-color: #007aff;
       box-shadow: 0 1px 0 0 #007aff; 
     }
     
-    button { 
-      height: 36px; /* 调整为与单行 textarea 相同的等高 */
-      padding: 0 20px; 
+    button, .btn { 
+      height: 36px; 
+      padding: 0 16px; 
       background: #007aff; 
       color: white; 
       border: none; 
@@ -206,12 +244,49 @@
       flex-shrink: 0; 
       transition: all 0.2s ease;
       box-shadow: 0 2px 6px rgba(0, 122, 255, 0.2);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
     }
-    button:hover { background: #0062cc; }
-    button:active { transform: scale(0.97); }
+    button:hover, .btn:hover { background: #0062cc; }
+    button:active, .btn:active { transform: scale(0.97); }
+
+    .btn-file.uploading {
+      pointer-events: none;
+      opacity: 0.55;
+    }
+
+    /* 上传进度提示 */
+    .upload-toast {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-80px);
+      background: rgba(30,30,30,0.88);
+      backdrop-filter: blur(12px);
+      color: #fff;
+      padding: 10px 22px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 500;
+      z-index: 999;
+      transition: transform 0.35s cubic-bezier(.4,.0,.2,1), opacity 0.35s;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .upload-toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* 隐藏的 file input */
+    #fileInput { display: none; }
   </style>
 </head>
 <body>
+
+<div class="upload-toast" id="uploadToast">📤 正在上传文件...</div>
 
 <div class="chat-card">
   <div class="header">
@@ -228,6 +303,8 @@
       
       <div class="footer">
         <textarea id="msgInput" placeholder="输入消息..."></textarea>
+        <input type="file" id="fileInput" />
+        <button id="fileBtn" onclick="document.getElementById('fileInput').click()">发送文件</button>
         <button onclick="sendMsg()">发送</button>
       </div>
     </div>
@@ -240,82 +317,81 @@
 </div>
 
 <script>
-  // 1. 基础主题定义
+  // ========== 基础配置 ==========
   const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
   const ROOM_ID = 'my_web_chat_room_2026';
-  
-  // 主消息 Topic 与 用户在线状态 Topic 隔离
   const CHAT_TOPIC = `chat/${ROOM_ID}/messages`;
   const USER_PRESENCE_PREFIX = `chat/${ROOM_ID}/users/`;
   const USER_PRESENCE_WILDCARD = `chat/${ROOM_ID}/users/+`;
 
+  // ★★★ 你自己的 Worker 文件存储地址 ★★★
+  const WORKER_BASE_URL = 'https://tempfile-storage.lovefree.de5.net';
+
   const myNickname = '用户_' + Math.floor(1000 + Math.random() * 9000);
   const myClientId = 'web_client_' + Math.random().toString(16).substring(2, 10);
   const myUserTopic = `${USER_PRESENCE_PREFIX}${myClientId}`;
-
-  // 本地维护在线用户数据 Map: clientId -> { nickname: string }
   const onlineUsers = new Map();
 
-  // DOM 节点
+  // DOM
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');
   const chatListEl = document.getElementById('chatList');
   const msgInput = document.getElementById('msgInput');
   const userListEl = document.getElementById('userList');
   const userCountHeader = document.getElementById('userCountHeader');
+  const fileInput = document.getElementById('fileInput');
+  const fileBtn = document.getElementById('fileBtn');
+  const uploadToast = document.getElementById('uploadToast');
 
-  // 输入框自适应高度
+  // ========== 输入框自适应 ==========
   msgInput.addEventListener('input', function() {
-    this.style.height = '38px';
-    const contentHeight = this.scrollHeight + 2;
-    if (contentHeight > 120) {
+    this.style.height = '36px';
+    const h = this.scrollHeight + 2;
+    if (h > 120) {
       this.style.height = '120px';
       this.style.overflowY = 'auto';
     } else {
-      this.style.height = Math.max(38, contentHeight) + 'px';
+      this.style.height = Math.max(36, h) + 'px';
       this.style.overflowY = 'hidden';
     }
   });
 
-  // 2. 连接 MQTT Broker (设置 Will 遗嘱消息)
+  // Enter 发送, Shift+Enter 换行
+  msgInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMsg();
+    }
+  });
+
+  // ========== MQTT 连接 ==========
   const client = mqtt.connect(BROKER_URL, {
     clientId: myClientId,
     clean: true,
     connectTimeout: 5000,
     will: {
       topic: myUserTopic,
-      payload: '', // 空 Payload 在 MQTT 保留消息中意味着“清除此保留消息”
+      payload: '',
       qos: 1,
-      retain: true // 遗嘱消息设为 retain: true，以便覆盖在线状态
+      retain: true
     }
   });
 
-  // 3. 监听 MQTT 连接成功
   client.on('connect', () => {
     statusText.innerText = '已连接';
     statusDot.classList.add('online');
-
-    // 订阅聊天消息 Topic 和 用户状态变化 Topic
     client.subscribe([CHAT_TOPIC, USER_PRESENCE_WILDCARD], { qos: 1 });
-
-    // 发布上线保留消息 (Retain: true)
-    const userPresencePayload = JSON.stringify({ nickname: myNickname });
-    client.publish(myUserTopic, userPresencePayload, { qos: 1, retain: true });
+    client.publish(myUserTopic, JSON.stringify({ nickname: myNickname }), { qos: 1, retain: true });
   });
 
-  // 4. 监听接收消息
   client.on('message', (topic, payload) => {
     try {
-      // 分流处理：如果是状态 Topic
       if (topic.startsWith(USER_PRESENCE_PREFIX)) {
         const senderClientId = topic.replace(USER_PRESENCE_PREFIX, '');
         const payloadStr = payload.toString();
-
         if (!payloadStr || payloadStr.trim() === '') {
-          // Payload 为空 -> 表示该用户下线（清除 Retain 消息）
           onlineUsers.delete(senderClientId);
         } else {
-          // Payload 不为空 -> 表示该用户在线
           const userData = JSON.parse(payloadStr);
           onlineUsers.set(senderClientId, { nickname: userData.nickname });
         }
@@ -323,13 +399,14 @@
         return;
       }
 
-      // 分流处理：如果是聊天消息 Topic
       if (topic === CHAT_TOPIC) {
         const data = JSON.parse(payload.toString());
-        const { senderId, nickname, text, time } = data;
-
-        if (senderId !== myClientId) {
-          addMessage(text, 'other', nickname, time);
+        if (data.senderId !== myClientId) {
+          if (data.type === 'file') {
+            addFileMessage(data, 'other');
+          } else {
+            addMessage(data.text, 'other', data.nickname, data.time);
+          }
         }
       }
     } catch (e) {
@@ -342,80 +419,242 @@
     statusDot.classList.remove('online');
   });
 
-  // 页面关闭/刷新的优雅离开机制
   window.addEventListener('beforeunload', () => {
     if (client.connected) {
-      // 主动发一条空的 Retain 消息清除自己的在线记录
       client.publish(myUserTopic, '', { qos: 1, retain: true });
     }
   });
 
-  // 5. 发送聊天消息
+  // ========== 发送文字消息 ==========
   function sendMsg() {
     const text = msgInput.value.trim();
     if (!text) return;
-
-    if (!client.connected) {
-      alert('MQTT 尚未连接成功，请稍等！');
-      return;
-    }
+    if (!client.connected) { alert('MQTT 尚未连接成功，请稍等！'); return; }
 
     const now = Date.now();
     const payload = JSON.stringify({
       senderId: myClientId,
       nickname: myNickname,
+      type: 'text',
       text: text,
       time: now
     });
 
     client.publish(CHAT_TOPIC, payload, { qos: 1 });
-
     addMessage(text, 'me', myNickname, now);
-
     msgInput.value = '';
-    msgInput.style.height = '38px';
+    msgInput.style.height = '36px';
     msgInput.style.overflowY = 'hidden';
   }
 
-  function formatTime(timestamp) {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  // ========== 文件上传 (自己的 Worker 临时存储) ==========
+  function uploadWithProgress(url, formData, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) onProgress(e.loaded / e.total);
+      });
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(xhr.responseText.trim());
+        } else {
+          reject(new Error('HTTP ' + xhr.status + ': ' + xhr.responseText));
+        }
+      });
+      xhr.addEventListener('error', () => reject(new Error('网络错误，上传失败')));
+      xhr.send(formData);
+    });
   }
 
+  fileInput.addEventListener('change', async function() {
+    const file = this.files[0];
+    if (!file) return;
+    this.value = '';
+
+    if (!client.connected) { alert('MQTT 尚未连接，请稍等！'); return; }
+
+    const MAX_SIZE = 100 * 1024 * 1024; // 100MB，Worker KV 上限
+    if (file.size > MAX_SIZE) {
+      alert('文件大小超过 100 MB 限制，当前: ' + (file.size / 1024 / 1024).toFixed(1) + ' MB');
+      return;
+    }
+
+    fileBtn.classList.add('uploading');
+    fileBtn.textContent = '上传中 0%';
+    
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);  // 字段名 "file"，对应 Worker 端
+
+      const responseText = await uploadWithProgress(
+        WORKER_BASE_URL + '/upload',
+        formData,
+        (p) => {
+          const pct = Math.round(p * 100);
+          fileBtn.textContent = '上传中 ' + pct + '%';
+          
+        }
+      );
+
+      const result = JSON.parse(responseText);
+
+      if (!result.success || !result.url) {
+        throw new Error(result.error || '服务器返回异常');
+      }
+
+      const fileUrl = result.url; // 一次性下载直链
+
+      const now = Date.now();
+      const msgData = {
+        senderId: myClientId,
+        nickname: myNickname,
+        type: 'file',
+        fileName: file.name,
+        fileSize: file.size,
+        fileUrl: fileUrl,
+        time: now
+      };
+
+      client.publish(CHAT_TOPIC, JSON.stringify(msgData), { qos: 1 });
+      addFileMessage(msgData, 'me');
+
+      showToast('✅ 上传完成！文件仅可下载一次');
+      setTimeout(hideToast, 2500);
+
+    } catch (err) {
+      console.error('上传失败:', err);
+      showToast('❌ 上传失败: ' + err.message);
+      setTimeout(hideToast, 3000);
+    } finally {
+      fileBtn.classList.remove('uploading');
+      fileBtn.textContent = '发送文件';
+    }
+  });
+
+  // ========== Toast 提示 ==========
+  function showToast(msg) {
+    uploadToast.textContent = msg;
+    uploadToast.classList.add('show');
+  }
+  function hideToast() {
+    uploadToast.classList.remove('show');
+  }
+
+  // ========== 渲染消息 ==========
+  function formatTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+
+  function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  }
+
+  function getFileIcon(fileName) {
+    const ext = (fileName || '').split('.').pop().toLowerCase();
+    const map = {
+      pdf: '📕', doc: '📘', docx: '📘', xls: '📗', xlsx: '📗',
+      ppt: '📙', pptx: '📙', zip: '🗜️', rar: '🗜️', '7z': '🗜️',
+      jpg: '🖼️', jpeg: '🖼️', png: '🖼️', gif: '🖼️', webp: '🖼️', svg: '🖼️',
+      mp4: '🎬', mov: '🎬', avi: '🎬', mkv: '🎬',
+      mp3: '🎵', wav: '🎵', flac: '🎵',
+      txt: '📄', md: '📄', json: '📄', csv: '📄',
+      js: '💻', html: '💻', css: '💻', py: '💻',
+      exe: '⚙️', dmg: '⚙️', apk: '📦',
+    };
+    return map[ext] || '📁';
+  }
+
+  // 普通文字消息
   function addMessage(text, type, sender, timestamp) {
     const itemDiv = document.createElement('div');
     itemDiv.className = `msg-item ${type}`;
 
     const metaDiv = document.createElement('div');
     metaDiv.className = 'msg-meta';
-    
     const nameSpan = document.createElement('span');
     nameSpan.innerText = sender;
-    
     const timeSpan = document.createElement('span');
     timeSpan.innerText = formatTime(timestamp);
-
     metaDiv.appendChild(nameSpan);
     metaDiv.appendChild(timeSpan);
 
     const bubbleDiv = document.createElement('div');
     bubbleDiv.className = 'msg-bubble';
-    bubbleDiv.innerText = text;
+    bubbleDiv.innerHTML = linkifyText(text);
 
     itemDiv.appendChild(metaDiv);
     itemDiv.appendChild(bubbleDiv);
-
     chatListEl.appendChild(itemDiv);
     chatListEl.scrollTop = chatListEl.scrollHeight;
   }
 
-  // 6. 渲染用户列表
+  // 文件消息（使用与文字相同的气泡）
+  function addFileMessage(data, type) {
+    const itemDiv = document.createElement('div');
+    itemDiv.className = `msg-item ${type}`;
+
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'msg-meta';
+    const nameSpan = document.createElement('span');
+    nameSpan.innerText = data.nickname;
+    const timeSpan = document.createElement('span');
+    timeSpan.innerText = formatTime(data.time);
+    metaDiv.appendChild(nameSpan);
+    metaDiv.appendChild(timeSpan);
+
+    const bubbleDiv = document.createElement('div');
+    bubbleDiv.className = 'msg-bubble';
+
+    const fileLink = document.createElement('a');
+    fileLink.className = 'file-content';
+    fileLink.href = data.fileUrl;
+    fileLink.target = '_blank';
+    fileLink.rel = 'noopener noreferrer';
+    fileLink.setAttribute('download', data.fileName);
+    fileLink.title = '点击下载: ' + data.fileName + '（一次性链接，下载后自动销毁）';
+
+    fileLink.innerHTML = `
+      <div class="file-icon">${getFileIcon(data.fileName)}</div>
+      <div class="file-info">
+        <div class="file-name">${escapeHtml(data.fileName)}</div>
+        <div class="file-size-text">${formatFileSize(data.fileSize)}</div>
+      </div>
+    `;
+
+    bubbleDiv.appendChild(fileLink);
+    itemDiv.appendChild(metaDiv);
+    itemDiv.appendChild(bubbleDiv);
+    chatListEl.appendChild(itemDiv);
+    chatListEl.scrollTop = chatListEl.scrollHeight;
+  }
+
+  // ========== 工具函数 ==========
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // 将纯文本中的 URL 变成可点击链接
+  function linkifyText(text) {
+    const escaped = escapeHtml(text);
+    const urlRegex = /(https?:\/\/[^\s<]+)/g;
+    return escaped.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+  }
+
+  // ========== 用户列表 ==========
   function renderUserList() {
     userListEl.innerHTML = '';
     userCountHeader.innerText = `USERS (${onlineUsers.size})`;
 
-    // 1. 先单独渲染“自己”
     if (onlineUsers.has(myClientId)) {
       const myUser = onlineUsers.get(myClientId);
       const myDiv = document.createElement('div');
@@ -424,11 +663,8 @@
       userListEl.appendChild(myDiv);
     }
 
-    // 2. 再遍历渲染其他所有用户
     onlineUsers.forEach((user, id) => {
-      // 跳过自己，因为前面已经单独渲染过了
       if (id === myClientId) return;
-
       const userDiv = document.createElement('div');
       userDiv.className = 'user-item online';
       userDiv.innerText = user.nickname;
